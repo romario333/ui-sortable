@@ -7,9 +7,22 @@ angular.module('ui.sortable', [])
   .value('uiSortableConfig',{})
   .directive('uiSortable', [ 'uiSortableConfig', '$log',
         function(uiSortableConfig, log) {
+
+        // TODO: Sortable plugin does not have public method which would return all elements
+        //       it handles. It has something very close to this (toArray). I have tweaked toArray
+        //       to return all items and for now I'm monkey-patching this as getItems on Sortable plugin.
+        $.ui.sortable.prototype.getItems = function(o) {
+          return this._getItemsAsjQuery(o && o.connected);
+        };
+
         return {
           require: '?ngModel',
           link: function(scope, element, attrs, ngModel) {
+
+            // returns the index of item's current position within sortable elements
+            function itemIndex(item) {
+              return element.sortable('getItems').index(item);
+            }
 
               function combineCallbacks(first,second){
                   if( second && (typeof second === "function") ){
@@ -37,7 +50,7 @@ angular.module('ui.sortable', [])
               }
             };
 
-            angular.extend(opts, uiSortableConfig);
+            angular.extend(opts, uiSortableConfig, scope.$eval(attrs.uiSortable));
 
             if (ngModel) {
 
@@ -47,7 +60,7 @@ angular.module('ui.sortable', [])
 
               callbacks.start = function(e, ui) {
                 // Save position of dragged item
-                ui.item.sortable = { index: ui.item.index() };
+                ui.item.sortable = { index: itemIndex(ui.item) };
               };
 
               callbacks.update = function(e, ui) {
@@ -58,7 +71,7 @@ angular.module('ui.sortable', [])
               callbacks.receive = function(e, ui) {
                 ui.item.sortable.relocate = true;
                 // added item to array into correct position and set up flag
-                ngModel.$modelValue.splice(ui.item.index(), 0, ui.item.sortable.moved);
+                ngModel.$modelValue.splice(itemIndex(ui.item), 0, ui.item.sortable.moved);
               };
 
               callbacks.remove = function(e, ui) {
@@ -77,7 +90,7 @@ angular.module('ui.sortable', [])
                   // Fetch saved and current position of dropped element
                   var end, start;
                   start = ui.item.sortable.index;
-                  end = ui.item.index();
+                  end = itemIndex(ui.item);
 
                   // Reorder array and apply change to scope
                   ui.item.sortable.resort.$modelValue.splice(end, 0, ui.item.sortable.resort.$modelValue.splice(start, 1)[0]);
